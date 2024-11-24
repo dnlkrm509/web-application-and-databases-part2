@@ -1,0 +1,154 @@
+.logoContainer {
+    position: relative;
+    width: 7rem;
+    margin-bottom: 3rem;
+}
+
+.marked {
+    position: absolute;
+    height: 70px;
+    width: 80px;
+    z-index: 40;
+    mix-blend-mode: screen;
+    background-color: #30807a;
+    background-image: linear-gradient(white, #30807a, white);
+}
+
+.logo {
+    margin-top: 1.25rem;
+    margin-right: 0.75rem;
+    animation: logo-spin 10s linear infinite;
+}
+
+.overlay {
+    z-index: 1;
+    background-color: rgba(0,0,0, 0.77);
+    transition: 0.5s;
+}
+
+.overlay nav {
+    position: relative;
+    height: 70%;
+    top: 20%;
+    transform: translateY(-20%);
+    font-size: 50px;
+    font-weight: 400;
+    text-align: center;
+    z-index: 100;
+}
+
+.overlay ul {
+    list-style: none;
+    padding: 0;
+    margin: 0 auto;
+    display: inline-block;
+    position: relative;
+    height: 100%;
+}
+    
+.overlay ul li {
+    display: block;
+    height: calc(100% / 6.8);
+    min-height: 50px;
+    position: relative;
+    opacity: 0;
+    animation: fadeInRight 0.5s ease-in-out forwards;
+    animation-delay: 0.35s;
+}
+
+.overlay a {
+    display: inline-block;
+    padding: 1rem;
+    position: relative;
+    text-align: center;
+    text-decoration: none;
+    font-size: 20px;
+    color: #818181;
+    overflow: hidden;
+    top: 15px;
+    z-index: 100;
+    cursor: pointer;
+}
+  
+.overlay a:hover, .overlay a:focus {
+    color: #f1f1f1;
+}
+
+.width100 {
+    width: 100%;
+}
+
+.width0 {
+    width: 0;
+}
+
+.links {
+    overflow-y: hidden;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none;  /* Internet Explorer 10+ */
+    margin-left: 50px;
+}
+.links::-webkit-scrollbar { /* WebKit */
+    width: 0;
+    height: 0;
+}
+
+.links ul {
+    white-space: nowrap;
+}
+
+.links ul li a {
+    padding: 1rem;
+    cursor: pointer;
+}
+
+.links ul li a:hover,
+.links ul li a:active,
+.links ul li a:focus {
+    color: #4ecd4e;
+}
+
+@keyframes fadeInRight {
+    0% {
+      opacity: 0;
+      left: 20%;
+    }
+    100% {
+      opacity: 1;
+      left: 0;
+    }
+  }
+
+@keyframes logo-spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 768px) {
+    .links {
+        margin-left: 20px;
+    }
+}
+
+@media screen and (max-height: 450px) {
+    .nav {
+        margin-top: 10px;
+        overflow-y: auto;
+        scrollbar-width: none; /* Firefox */
+        -ms-overflow-style: none;  /* Internet Explorer 10+ */
+        overflow-x: hidden;
+    }
+
+    .nav::-webkit-scrollbar { /* WebKit */
+        width: 0;
+        height: 0;
+    }
+    ul {
+      margin-top: 2rem;
+    }
+    a {font-size: 15px}
+}
