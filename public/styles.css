@@ -15,9 +15,15 @@
 }
 
 .logo {
-    margin-top: 1.25rem;
+    margin-top: 1rem;
     margin-right: 0.75rem;
     animation: logo-spin 10s linear infinite;
+}
+
+.row, .login {
+    display: flex;
+    flex-direction: row;
+    gap: 120px;
 }
 
 .overlay {

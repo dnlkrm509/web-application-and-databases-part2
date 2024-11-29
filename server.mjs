@@ -3,6 +3,14 @@ import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
 import expressSession from 'express-session';
 import { MongoClient, ServerApiVersion, ObjectId } from 'mongodb';
+import fileUpload from 'express-fileupload';
+import { fileURLToPath } from 'url';
+import { promises as fs } from 'fs';
+import path from 'path';
+import axios from 'axios';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
@@ -11,6 +19,9 @@ const app = express();
 app.use(bodyParser.json());
 
 app.use(express.static('public'));
+app.use('/uploads', express.static('uploads'));
+
+app.use(fileUpload());
 
 app.use(expressSession({
     secret: process.env.SECRET,
@@ -66,47 +77,62 @@ function getClientDatabaseCollection() {
     const usersCollection = database.collection('users');
     const postsCollection = database.collection('posts');
     const followsCollection = database.collection('follows');
+    const personalDetailsCollection = database.collection('personal-details');
 
-    return {client, usersCollection, postsCollection, followsCollection}
+    return {client, usersCollection, postsCollection, followsCollection, personalDetailsCollection}
 }
 
-app.get('/M01008906', (req, res) => {
-    //res.status(200).send("{ name: 'Daniel Karimi', email: 'DK807@live.mdx.ac.uk', studentId: 'M01008906' }");
-    res.status(200).json({ name: 'Daniel Karimi', email: 'DK807@live.mdx.ac.uk', studentId: 'M01008906' });
+app.get('/M01008906', async (req, res) => {
+    const { client, personalDetailsCollection } = getClientDatabaseCollection();
+    try {
+        const details = await personalDetailsCollection.find().toArray();
+
+        res.status(200).send(details);
+        
+    } catch(err) {
+        error = "Connection to database failed with a " + err;
+        console.log(error);
+
+        // status 503 service unavailable error, if system has internal server error like issues making connection to a database
+        res.status(503).json({ message: err });
+    } finally {
+        await client.close();
+    }
+    
 });
 
 app.post('/M01008906/users', async (req, res) => {
     const newUser = req.body;
     if(!newUser) {
         res.status(400).json({ message: `Bad request. New user must be a non-empty object.` });
-    } else {
+        return;
+    } 
+    
+    const { client, usersCollection } = getClientDatabaseCollection();
+    try {
+        const query = { email: newUser.email };
 
-        const { client, usersCollection } = getClientDatabaseCollection();
-        try {
-            const query = { email: newUser.email };
-
-            const existingUser = await usersCollection.find(query).toArray();
+        const existingUser = await usersCollection.find(query).toArray();
+        
+        if(!existingUser || existingUser.length === 0) {
+            const result = await usersCollection.insertOne(newUser);
+            console.log(result);
             
-            if(!existingUser || existingUser.length === 0) {
-                const result = await usersCollection.insertOne(newUser);
-                console.log(result);
-                
-                res.status(200).json({ message:  `user added.`});
-            } else {
-                res.status(200).json({ message:  `user exists.`});
-            }
-            
-        } catch(err) {
-            error = "Connection to database failed with a " + err;
-            console.log(error);
+            res.status(200).json({ message:  `user added.`});
+        } else {
+            res.status(200).json({ message:  `user exists.`});
+        }
+        
+    } catch(err) {
+        error = "Connection to database failed with a " + err;
+        console.log(error);
 
-            // status 503 service unavailable error, if system has internal server error like issues making connection to a database
-            res.status(503).json({ message: err });
-        } finally {
-            await client.close();
-        } 
+        // status 503 service unavailable error, if system has internal server error like issues making connection to a database
+        res.status(503).json({ message: err });
+    } finally {
+        await client.close();
+    } 
 
-    }
 });
 
 app.get('/M01008906/login', (req, res) => {
@@ -153,7 +179,7 @@ app.post('/M01008906/login', async (req, res) => {
             console.log(error);
 
             // status 503 service unavailable error, if system has internal server error like issues making connection to a database
-            res.status(503).json({ message: err });
+            res.status(503).json({ error: err });
         } finally {
             await client.close();
         }
@@ -176,7 +202,7 @@ app.delete('/M01008906/login', (req, res) => {
 app.post('/M01008906/contents', async (req, res) => {
     const newPost = req.body;
     if(!newPost) {
-        res.status(400).json({ message: `Bad request. New user must be a non-empty object.` });
+        res.status(400).json({ message: `Bad request. New post must be a non-empty object.` });
     } else {
 
         const { client, postsCollection } = getClientDatabaseCollection();
@@ -214,12 +240,12 @@ app.get('/M01008906/contents', async (req, res) => {
             const followingList = currentUser[0].follows;
             
             // Now that I have list of followings I can access their contents
-            const conditions = followingList.map((user) => ({ email: user.email }));
+            const conditions = followingList.map((userEmail) => ({ email: userEmail }));
             const posts = await postsCollection.find({$or: conditions }).toArray();
             let contents = [];
 
             for(let post of posts) {
-                contents.push(post.text);
+                contents.push(post);
             }
             
 
@@ -252,9 +278,25 @@ app.post('/M01008906/follow', async (req, res) => {
         return;
     }
 
-    // Logged in and have the email to follow
-    const { client, followsCollection } = getClientDatabaseCollection();
+    // Log in and have the email to follow
+    const { client, followsCollection, usersCollection } = getClientDatabaseCollection();
     try {
+        // Firstly I need to check if the entered email is registered before taking any ferther action
+
+        const otherUser = await usersCollection.find({email: email}).toArray();
+
+        if(otherUser.length === 0) {
+            res.status(404).send({message: "User is not registered."});
+            return;
+        }
+
+        if (email === req.session.email) {
+            //If we get to here there is an error
+            //Details wrong
+            res.status(404).send({message: "Users cannot follow themselves."});
+            return;
+        }
+
 
         // Identify both logged in user and user being followed to perform the follow action mutually
         
@@ -268,145 +310,131 @@ app.post('/M01008906/follow', async (req, res) => {
         const loggedinUserUpdateQuery = { email: req.session.email };
         let loggedinUserUpdateDoc;
 
-        if (email !== req.session.email) {
-            // In each cases I insert / update TWO documents. One for the logged in user
-            // and the other one for the user being followed.
+        
+        // In each cases I insert / update TWO documents. One for the logged in user
+        // and the other one for the user being followed.
 
 
-            if(loggedinUserFollows.length  === 0){//No entry, create one
-                const newFollows = {
-                    email: req.session.email,
-                    follows: [email]
-                };
+        if(loggedinUserFollows.length  === 0){//No entry, create one
+            const newFollows = {
+                email: req.session.email,
+                follows: [email]
+            };
 
-                followsCollection.insertOne(newFollows);
-                //Send back reseponse to client
-
-
-                // Chech if the other user has followed anyone to specify the http request method
-                if(otherUserFollows.length !== 0) {
-                    otherUserUpdateDoc = {$set : { email: req.session.email, follows: [...otherUserFollows[0].follows, email ] } };
-
-                    let followedUsers = otherUserFollows[0].follows;
-                    let followed = false;
-
-                    for(let e of followedUsers) {
-                        if(e === email) {
-                            followed = true;
-                        }
-                    }
-
-                    let otherResult = {};
-                    if(!followed) {
-                        try {
-                            const resultedFollows = await followsCollection.updateOne(otherUserUpdateQuery, otherUserUpdateDoc);
-                            console.log(`${resultedFollows.modifiedCount} documents updated.`);
-                            
-                            otherResult = { status: 200, body: { follows: email, message: 'Successfully followed the user.' } };
-                        } catch (err) {
-                            otherResult = { status: 503, body: { message: 'Error updating follow', error: err.message } };
-                        }
-                    } else {
-                        otherResult = { status: 400, body: { message: `The user has already been followed.` } };
-                    }
-                    res.status(otherResult.status).send({ email: req.session.email, ...otherResult.body });
-                    
-                } else {
-                    followsCollection.insertOne({ email: email, follows: [req.session.email] });
-                    res.status(200).send({ ...newFollows, message: 'Successfully followed the user.' });
-                }
+            followsCollection.insertOne(newFollows);
 
 
-                
-                return;
-            }
+            // Chech the other user follows length value to specify the http request method and send back reseponse to client
+            if(otherUserFollows.length !== 0) {
+                otherUserUpdateDoc = {$set : { follows: [...otherUserFollows[0].follows, req.session.email ] } };
 
-
-    
-            if(loggedinUserFollows.length === 1){
-                let followedUsers = loggedinUserFollows[0].follows;
+                let followedUsers = otherUserFollows[0].follows;
                 let followed = false;
 
                 for(let e of followedUsers) {
-                    if(e === email) {
+                    if(e === req.session.email) {
                         followed = true;
                     }
                 }
 
-                let result = {};
+                let otherResult = {};
                 if(!followed) {
                     try {
-                        loggedinUserUpdateDoc = {$set : { follows: [ ...loggedinUserFollows[0].follows, email ] } };
-
-                        const resultedFollows = await followsCollection.updateOne(loggedinUserUpdateQuery, loggedinUserUpdateDoc);
+                        const resultedFollows = await followsCollection.updateOne(otherUserUpdateQuery, otherUserUpdateDoc);
                         console.log(`${resultedFollows.modifiedCount} documents updated.`);
-            
-                        result = { status: 200, body: { follows: email, message: 'Successfully followed the user.' } };
+                        
+                        otherResult = { status: 200, body: { follows: req.session.email, message: 'Successfully followed the user.' } };
                     } catch (err) {
-                        result = { status: 503, body: { message: 'Error updating follow', error: err.message } };
+                        otherResult = { status: 503, body: { message: 'Error updating follow', error: err.message } };
                     }
                 } else {
-                    result = { status: 400, body: { message: `The user has already been followed.` } };
+                    otherResult = { status: 400, body: { message: `The user has already been followed.` } };
                 }
-
-
-
-
+                res.status(otherResult.status).send({ email: email, ...otherResult.body });
                 
-                // Chech if the other user has followed anyone to specify the http request method
-                if(otherUserFollows.length !== 0) {
-                    otherUserUpdateDoc = {$set : { follows: [ ...otherUserFollows[0].follows, email ] } };
-                    
-                    followedUsers = otherUserFollows[0].follows;
-                    followed = false;
-
-                    for(let e of followedUsers) {
-                        if(e === req.session.email) {
-                            followed = true;
-                        }
-                    }
-
-                    let otherResult = {};
-                    if(!followed) {
-                        try {
-                            const resultedFollows = await followsCollection.updateOne(otherUserUpdateQuery, otherUserUpdateDoc);
-                            console.log(`${resultedFollows.modifiedCount} documents updated.`);
-                            
-                            otherResult = { status: 200, body: { follows: email, message: 'Successfully followed the user.' } };
-                        } catch (err) {
-                            otherResult = { status: 503, body: { message: 'Error updating follow', error: err.message } };
-                        }
-                    } else {
-                        otherResult = { status: 400, body: { follows: email, message: `The user has already been followed.` } };
-                    }
-                    res.status(otherResult.status).send({ email: req.session.email, ...otherResult.body });
-
-
-                } else {
-                    followsCollection.insertOne({ email: email, follows: [req.session.email] });
-                    res.status(200).send({ email: req.session.email, follows: email, message: 'Successfully followed the user.' });
-                }
-                
-    
-                //Update data by adding new email
-    
-                //Replace in database 
-    
-                //~Return 
-    
-                return;
-    
+            } else {
+                followsCollection.insertOne({ email: email, follows: [req.session.email] });
+                res.status(200).send({ ...newFollows, message: 'Successfully followed the user.' });
             }
 
-            // Sysetm error - multiple users returned - we should have checked this earlier. Two users with same email address
-            res.status(503).send({error: "Multiple users with same email have been found."})
+
+            return;
+        }
+
+
+
+        if(loggedinUserFollows.length === 1){
+            let followedUsers = loggedinUserFollows[0].follows;
+            let followed = false;
+
+            for(let e of followedUsers) {
+                if(e === email) {
+                    followed = true;
+                }
+            }
+
+            let result = {};
+            if(!followed) {
+                try {
+                    loggedinUserUpdateDoc = {$set : { follows: [ ...loggedinUserFollows[0].follows, email ] } };
+
+                    const resultedFollows = await followsCollection.updateOne(loggedinUserUpdateQuery, loggedinUserUpdateDoc);
+                    console.log(`${resultedFollows.modifiedCount} documents updated.`);
+        
+                    result = { status: 200, body: { follows: email, message: 'Successfully followed the user.' } };
+                } catch (err) {
+                    result = { status: 503, body: { message: 'Error updating follow', error: err.message } };
+                }
+            } else {
+                result = { status: 400, body: { message: `The user has already been followed.` } };
+            }
+
+
+
+
+            
+            // Chech if the other user has followed anyone to specify the http request method
+            if(otherUserFollows.length !== 0) {
+                otherUserUpdateDoc = {$set : { follows: [ ...otherUserFollows[0].follows, req.session.email ] } };
+                
+                followedUsers = otherUserFollows[0].follows;
+                followed = false;
+
+                for(let e of followedUsers) {
+                    if(e === req.session.email) {
+                        followed = true;
+                    }
+                }
+
+                let otherResult = {};
+                if(!followed) {
+                    try {
+                        const resultedFollows = await followsCollection.updateOne(otherUserUpdateQuery, otherUserUpdateDoc);
+                        console.log(`${resultedFollows.modifiedCount} documents updated.`);
+                        
+                        otherResult = { status: 200, body: { follows: email, message: 'Successfully followed the user.' } };
+                    } catch (err) {
+                        otherResult = { status: 503, body: { message: 'Error updating follow', error: err.message } };
+                    }
+                } else {
+                    otherResult = { status: 400, body: { message: `The user has already been followed.` } };
+                }
+                res.status(otherResult.status).send({ email: req.session.email, ...otherResult.body });
+
+
+            } else {
+                followsCollection.insertOne({ email: email, follows: [req.session.email] });
+                res.status(200).send({ email: email, follows: req.session.email, message: 'Successfully followed the user.' });
+            }
+
             return;
 
         }
 
-        //If we get to here there is an error
-        //Details wrong
-        res.status(404).send({message: "Users cannot follow themselves."})
+        // Sysetm error - multiple users returned - we should have checked this earlier. Two users with same email address
+        res.status(503).send({message: "Multiple users with same email have been found."})
+        return;
+
 
     } catch (err) {
         console.error("Error: ", err);
@@ -421,7 +449,7 @@ app.post('/M01008906/follow', async (req, res) => {
 
 
 app.delete('/M01008906/follow', async (req, res) => {
-    const email = req.body.email;//Deklete this later
+    const email = req.body.email;//Delete this later
     if (req.session.email === undefined) {
         res.status(400).send({ message: `Unfollow request cannot be made because you are not logged in.` });
         return;
@@ -431,7 +459,6 @@ app.delete('/M01008906/follow', async (req, res) => {
         res.status(400).send({ message: `Unfollow request cannot be made because your request does not include an email address.` });
         return;
     }
-
 
     // Unfollow request was sent
     const { client, followsCollection } = getClientDatabaseCollection();
@@ -461,112 +488,111 @@ app.delete('/M01008906/follow', async (req, res) => {
             const loggedinUserUpdateQuery = { email: req.session.email };
             let loggedinUserUpdateDoc;
             
-                const updatedFollowing = loggedinUserFollowings[0].follows.filter((follow) => follow !== email);
+            const updatedFollowing = loggedinUserFollowings[0].follows.filter((follow) => follow !== email);
 
-                loggedinUserUpdateDoc = {$set : { follows: updatedFollowing } };
+            loggedinUserUpdateDoc = {$set : { follows: updatedFollowing } };
 
                 
-                let followedUsers;
-                let followed = false;
+            let followedUsers;
+            let followed = false;
 
-                followedUsers = loggedinUserFollowings[0].follows;
+            followedUsers = loggedinUserFollowings[0].follows;
 
-                for(let e of followedUsers) {
-                    if(e === email) {
-                        followed = true;
-                    }
+            for(let e of followedUsers) {
+                if(e === email) {
+                    followed = true;
                 }
+            }
     
 
-                let result = {};
-                let resultOther = {};
+            let result = {};
+            let resultOther = {};
 
-                if(followed) {
-                    try {
-                        // Calculate userFollowings length to specify whether to use delete or update method
-                        if(loggedinUserFollowings[0].follows.length === 1) {
-                            // Delete
-                            const resultedFollows = await followsCollection.deleteOne({ follows: email });
-                            console.log(`${resultedFollows.deletedCount} documents deleted.`);
+            if(followed) {
+                try {
+                    // Calculate userFollowings length to specify whether to use delete or update method
+                    if(loggedinUserFollowings[0].follows.length === 1) {
+                        // Delete
+                        const resultedFollows = await followsCollection.deleteOne({ email: req.session.email });
+                        console.log(`${resultedFollows.deletedCount} documents deleted.`);
 
-                            result = { status: 200, body: { unfollows: email, message: 'Successfully unfollowed the user.' } };
-                        } else if(!loggedinUserFollowings || loggedinUserFollowings.length === 0) {
-                            result = { status: 404, body: { message: 'User has not been found.' } };
-                        } else {
-                            // Update
-                            const resultedFollows = await followsCollection.updateOne(loggedinUserUpdateQuery, loggedinUserUpdateDoc);
-                            console.log(`${resultedFollows.modifiedCount} documents updated.`);
+                        result = { status: 200, body: { unfollows: email, message: 'Successfully unfollowed the user.' } };
+                    } else if(!loggedinUserFollowings || loggedinUserFollowings.length === 0) {
+                        result = { status: 404, body: { message: 'User has not been found.' } };
+                    } else {
+                        // Update
+                        const resultedFollows = await followsCollection.updateOne(loggedinUserUpdateQuery, loggedinUserUpdateDoc);
+                        console.log(`${resultedFollows.modifiedCount} documents updated.`);
 
-                            result = { status: 200, body: { unfollows: email, message: 'Successfully unfollowed the user.' } };
-                        }
-                    } catch (err) {
-                        result = { status: 503, body: { message: 'Error updating unfollow', error: err.message } };
+                        result = { status: 200, body: { unfollows: email, message: 'Successfully unfollowed the user.' } };
                     }
+                } catch (err) {
+                    result = { status: 503, body: { message: 'Error updating unfollow', error: err.message } };
+                }
             
                     
-                } else {
-                    result = { status: 400, body: { message: `The user has not been followed.`  } };
-                }
+            } else {
+                result = { status: 400, body: { message: `The user has not been followed.`  } };
+            }
 
 
-                // Chech if the other user has followed anyone
-                if(result.status === 200) {
-                    if(otherUserFollowings.length !== 0) {
-                        const updatedFollowing = otherUserFollowings[0].follows.filter((follow) => follow !== req.session.email);
+            // Chech if the other user has followed anyone
+            if(result.status === 200) {
+                if(otherUserFollowings.length !== 0) {
+                    const updatedFollowing = otherUserFollowings[0].follows.filter((follow) => follow !== req.session.email);
     
-                        otherUserUpdateDoc = {$set : { follows: updatedFollowing } };
+                    otherUserUpdateDoc = {$set : { follows: updatedFollowing } };
                         
-                        let followedUsers;
-                        let followed = false;
+                    let followedUsers;
+                    let followed = false;
     
-                        followedUsers = otherUserFollowings[0].follows;
+                    followedUsers = otherUserFollowings[0].follows;
     
-                        for(let e of followedUsers) {
-                            if(e === req.session.email) {
-                                followed = true;
-                            }
+                    for(let e of followedUsers) {
+                        if(e === req.session.email) {
+                            followed = true;
                         }
-
-                        if(followed) {
-                            try {
-                                // Calculate userFollowings length to specify whether to use delete or update method
-                                if(otherUserFollowings[0].follows.length === 1) {
-                                    // Delete
-                                    const resultedFollows = await followsCollection.deleteOne({ follows: req.session.email });
-                                    console.log(`${resultedFollows.deletedCount} documents deleted.`);
-    
-                                    resultOther = { status: 200, body: { unfollows: req.session.email, message: 'Successfully unfollowed the user.' } };
-                                } else if(!loggedinUserFollowings || loggedinUserFollowings.length === 0) {
-                                    resultOther = { status: 404, body: { message: 'User has not been found.' } };
-                                } else {
-                                    // Update
-                                    const resultedFollows = await followsCollection.updateOne(otherUserUpdateQuery, otherUserUpdateDoc);
-                                    console.log(`${resultedFollows.modifiedCount} documents updated.`);
-    
-                                    resultOther = { status: 200, body: { unfollows: req.session.email, message: 'Successfully unfollowed the user.' } };
-                                    return;
-                                }
-                            } catch (err) {
-                                resultOther = { status: 503, body: { message: 'Error updating unfollow', error: err.message } };
-                            }
-                
-                        
-                        } else {
-                            resultOther = { status: 400, body: { message: `The user has not been followed.`  } };
-                        }
-                        
                     }
 
+                    if(followed) {
+                        try {
+                            // Calculate userFollowings length to specify whether to use delete or update method
+                            if(otherUserFollowings[0].follows.length === 1) {
+                                // Delete
+                                const resultedFollows = await followsCollection.deleteOne({ email: email });
+                                console.log(`${resultedFollows.deletedCount} documents deleted.`);
+    
+                                resultOther = { status: 200, body: { unfollows: req.session.email, message: 'Successfully unfollowed the user.' } };
+                            } else if(!loggedinUserFollowings || loggedinUserFollowings.length === 0) {
+                                resultOther = { status: 404, body: { message: 'User has not been found.' } };
+                            } else {
+                                // Update
+                                const resultedFollows = await followsCollection.updateOne(otherUserUpdateQuery, otherUserUpdateDoc);
+                                console.log(`${resultedFollows.modifiedCount} documents updated.`);
+    
+                                resultOther = { status: 200, body: { unfollows: req.session.email, message: 'Successfully unfollowed the user.' } };
+                            }
+                        } catch (err) {
+                            resultOther = { status: 503, body: { message: 'Error updating unfollow', error: err.message } };
+                        }
+                
+                        
+                    } else {
+                        resultOther = { status: 400, body: { message: `The user has not been followed.`  } };
+                    }
+                        
                 }
 
-                 res.status(resultOther.status).send({currentUserResult: result.body, otherUserResult: resultOther.body});
-                 return;
+            }
+
+            res.status(resultOther.status).send({currentUserResult: result.body, otherUserResult: resultOther.body});
+            return;
 
         }
 
 
         // Sysetm error - multiple users returned - we should have checked this earlier. Two users with same email address
-        res.status(404).send({error: "multiple users with same email."});
+        res.status(404).send({message: "multiple users with same email."});
         return;
 
     } catch (err) {
@@ -597,7 +623,6 @@ app.get('/M01008906/users/search', async (req, res) => {
             else {
                 res.status(200).send({ users: existingUsers, message: "Users have been found." });
             }
-            return;
             
         } catch(err) {
             error = "Connection to database failed with a " + err;
@@ -621,13 +646,12 @@ app.get('/M01008906/contents/search', async (req, res) => {
             const existingPosts = await postsCollection.find(query).toArray();
             
             if(existingPosts.length === 0){
-                // Posts have not benn found
+                // Posts have not been found
                 res.status(404).send({ message: "Posts have not been found." });
             }
             else {
                 res.status(200).send({ posts: existingPosts, message: "Posts have been found." });
             }
-            return;
             
         } catch(err) {
             error = "Connection to database failed with a " + err;
@@ -639,6 +663,29 @@ app.get('/M01008906/contents/search', async (req, res) => {
             await client.close();
         }
 
+});
+
+app.post('/M01008906/upload', (req, res) => {
+    if(!req.files || Object.keys(req.files).length === 0) {
+        res.status(404).send({ upload: false, message: `File is missing. Please select a file.` });
+        return;
+    }
+
+    let file = req.files.file;
+
+    const uploadDir = path.join(__dirname, 'uploads');
+    const filePath = path.join(uploadDir, file.name);
+    
+    // Create uploads directory if it does not exist
+    fs.mkdir(uploadDir, { recursive: true });
+
+    file.mv(filePath, (error) => {
+        if(error) {
+            res.status(503).send({ upload: false, message: JSON.stringify(error), fileName: file.name });
+            return;
+        }
+        res.status(200).send({ upload: true, message: `File successfully uploaded`, fileName: file.name });
+    });
 });
 
 const PORT = process.env.PORT || 80;
