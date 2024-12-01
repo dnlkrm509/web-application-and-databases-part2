@@ -10,6 +10,12 @@
     <body>
         <!--Header-->
         <div id="header">
+            <div>
+                <h3>View precipitation over last past 24 hours</h3>
+                <button onclick="getLocationWeather()">View</button>
+
+                <p id="weather"></p>
+            </div>
             <div class="row" style="gap:250px;">
                 <div>
                     <h3>personal details</h3>
@@ -41,7 +47,58 @@
                     <button onclick="searchUsersFunc()">Search</button>
                 </div>
             </div>
+        </div><br><br><br>
+        
+        <div class="row">
+            <div style="border: 1px solid black;padding: 10px;">
+                <h2>Search Spoonacular API</h2>
+                <div class="row">
+                
+                    <div>
+                        <!--Recipes Search by name-->
+                        Search by food name: <input type="text" id="search-recipe-name-spoonacular"><br>
+                
+                        <button onclick="searchRecipesByFoodNameSpoonacular()">Search by food name</button>
+                    </div>
+                    
+                    <div>
+                        <!--Recipe Search by ID-->
+                        Search recipe by ID: <input type="text" id="search-recipe-id-spoonacular"><br>
+            
+                        <button onclick="searchRecipeByIDSpoonacular()">Search recipe by ID</button>
+                    </div>
+        
+                </div>
+            </div>
+    
+            <div style="border: 1px solid black;padding: 10px;">
+                <h2>Search Fatsecret API</h2>
+                <div class="row">
+                
+                    <div>
+                        <!--Recipes Search by name-->
+                        Search by food name: <input type="text" id="search-recipe-name-fatsecret"><br>
+                
+                        <button onclick="searchRecipesByFoodNameFatsecret()">Search by food name</button>
+                    </div>
+        
+                </div>
+            </div>
+
+
+
+
         </div>
+        
+        
+        
+        
+
+        
+        
+
+
+
         <div id="response-search"></div>
         <br><br><br><br>
         <div>

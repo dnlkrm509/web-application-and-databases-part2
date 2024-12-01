@@ -3,6 +3,10 @@ const SERVER_HOST_URL = 'http://localhost:8080';
 const registerForm = document.getElementById('register');
 const loginForm = document.getElementById('login');
 
+const weatherDiv = document.getElementById("weather");
+
+let latitude, longitude;
+
 const personalDetails = document.getElementById('personal-details');
 
 const fileInput = document.getElementById('file-input');
@@ -12,6 +16,11 @@ const avatar = document.getElementById('avatar');
 
 const searchUsers = document.getElementById('search-users');
 const searchContents = document.getElementById('search-contents');
+
+const searchRecipeNameSpoonacular = document.getElementById('search-recipe-name-spoonacular');
+const searchRecipeIdSpoonacular = document.getElementById('search-recipe-id-spoonacular');
+
+const searchRecipeNameFatsecret = document.getElementById('search-recipe-name-fatsecret');
 
 const responseDivSearch = document.getElementById('response-search');
 
@@ -259,10 +268,18 @@ async function follow() {
             responseDivLogin.innerHTML = data.message;
         } else if (response.ok) {
             data = await response.json();
-            responseDivLogin.innerHTML = "Email: " + data.email + ", follows: " + data.follows + ", message: " + data.message;
+
+            
+            responseDivLogin.innerHTML = `Current user: {<br>
+                email: ${data.email}<br>
+                follows: ${data.follows},<br>
+                message: ${data.message}<br>
+            }`;
         } else {
             responseDivLogin.innerHTML = "HTTP error: " + response.status;
         }
+
+        getContents();
         
         console.log(data);
         
@@ -289,15 +306,13 @@ async function unfollow() {
             responseDivLogin.innerHTML = `Current user: {<br>
                 unfollows: ${data.currentUserResult.unfollows},<br>
                 message: ${data.currentUserResult.message}<br>
-            }<br>
-            Other user: {<br>
-                unfollows: ${data.otherUserResult.unfollows},<br>
-                message: ${data.otherUserResult.message}<br>
             }`;
         } else {
             responseDivLogin.innerHTML = "HTTP error: " + response.status;
         }
         
+        getContents();
+
         console.log(data);
         
     } catch(err) {
@@ -364,4 +379,73 @@ async function searchContentsFunc() {
     } catch(err) {
         responseDivSearch.innerHTML = err;
     }
+}
+
+function getLocationWeather() {
+    if (navigator.geolocation) {
+        navigator.geolocation.watchPosition(showPosition);
+        return;
+    } else {
+        weatherDiv.innerHTML = "Geolocation is not supported by this browser.";
+    }
+}
+
+async function showPosition(position) {
+    latitude = position.coords.latitude;
+    longitude = position.coords.longitude;
+    const response = await fetch('http://localhost:8080/M01008906/weather', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            lat:latitude,
+            lon: longitude
+        })
+    });
+    
+    const data = await response.json();
+    weatherDiv.innerHTML=`Latitude: ${latitude}<br>
+    Longitude: ${longitude}<br>
+    Precipitation accumulated over the past 24 hours in millimeter: ${data.value}`;
+}
+
+async function searchRecipesByFoodNameSpoonacular() {
+    const response = await fetch('http://localhost:8080/M01008906/search-recipe-spoonacular', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ query: searchRecipeNameSpoonacular.value })
+    });
+
+    const data = await response.json();
+    console.log(data)
+}
+
+async function searchRecipeByIDSpoonacular() {
+    const response = await fetch(`http://localhost:8080/M01008906/recipe-spoonacular/${searchRecipeIdSpoonacular.value}`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    });
+
+    const data = await response.json();
+    console.log(data)
+}
+
+async function  searchRecipesByFoodNameFatsecret() {
+            
+    const response = await fetch('http://localhost:8080/M01008906/download', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ query: searchRecipeNameFatsecret.value })
+    });
+
+    const data = await response.json();
+    console.log(data);
+    
 }

@@ -2,12 +2,14 @@ import express from 'express';
 import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
 import expressSession from 'express-session';
-import { MongoClient, ServerApiVersion, ObjectId } from 'mongodb';
+import { MongoClient, ServerApiVersion } from 'mongodb';
 import fileUpload from 'express-fileupload';
 import { fileURLToPath } from 'url';
 import { promises as fs } from 'fs';
 import path from 'path';
 import axios from 'axios';
+import request from 'request';
+import querystring from 'querystring';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -78,8 +80,9 @@ function getClientDatabaseCollection() {
     const postsCollection = database.collection('posts');
     const followsCollection = database.collection('follows');
     const personalDetailsCollection = database.collection('personal-details');
+    const weatherCollection = database.collection('weather');
 
-    return {client, usersCollection, postsCollection, followsCollection, personalDetailsCollection}
+    return {client, usersCollection, postsCollection, followsCollection, personalDetailsCollection, weatherCollection}
 }
 
 app.get('/M01008906', async (req, res) => {
@@ -201,6 +204,13 @@ app.delete('/M01008906/login', (req, res) => {
 
 app.post('/M01008906/contents', async (req, res) => {
     const newPost = req.body;
+
+    // get user out of sessoin
+    if(req.session.email === undefined) {
+        res.status(400).send({ message: `Only logged in users can post a new content.` });
+        return;
+    }
+
     if(!newPost) {
         res.status(400).json({ message: `Bad request. New post must be a non-empty object.` });
     } else {
@@ -297,24 +307,14 @@ app.post('/M01008906/follow', async (req, res) => {
             return;
         }
 
-
-        // Identify both logged in user and user being followed to perform the follow action mutually
-        
         const loggedinUserFollows = await followsCollection.find({email: req.session.email}).toArray();
-        const otherUserFollows = await followsCollection.find({email: email}).toArray();
-
-
-        const otherUserUpdateQuery = { email: email };
-        let otherUserUpdateDoc;
 
         const loggedinUserUpdateQuery = { email: req.session.email };
         let loggedinUserUpdateDoc;
 
         
-        // In each cases I insert / update TWO documents. One for the logged in user
-        // and the other one for the user being followed.
-
-
+        // Calculate logged in user follow list length to identify and invoke the right method (whether to use post or update method)
+        
         if(loggedinUserFollows.length  === 0){//No entry, create one
             const newFollows = {
                 email: req.session.email,
@@ -322,42 +322,8 @@ app.post('/M01008906/follow', async (req, res) => {
             };
 
             followsCollection.insertOne(newFollows);
-
-
-            // Chech the other user follows length value to specify the http request method and send back reseponse to client
-            if(otherUserFollows.length !== 0) {
-                otherUserUpdateDoc = {$set : { follows: [...otherUserFollows[0].follows, req.session.email ] } };
-
-                let followedUsers = otherUserFollows[0].follows;
-                let followed = false;
-
-                for(let e of followedUsers) {
-                    if(e === req.session.email) {
-                        followed = true;
-                    }
-                }
-
-                let otherResult = {};
-                if(!followed) {
-                    try {
-                        const resultedFollows = await followsCollection.updateOne(otherUserUpdateQuery, otherUserUpdateDoc);
-                        console.log(`${resultedFollows.modifiedCount} documents updated.`);
-                        
-                        otherResult = { status: 200, body: { follows: req.session.email, message: 'Successfully followed the user.' } };
-                    } catch (err) {
-                        otherResult = { status: 503, body: { message: 'Error updating follow', error: err.message } };
-                    }
-                } else {
-                    otherResult = { status: 400, body: { message: `The user has already been followed.` } };
-                }
-                res.status(otherResult.status).send({ email: email, ...otherResult.body });
-                
-            } else {
-                followsCollection.insertOne({ email: email, follows: [req.session.email] });
-                res.status(200).send({ ...newFollows, message: 'Successfully followed the user.' });
-            }
-
-
+            res.status(200).send({ ...newFollows, message: 'Successfully followed the user.' });
+            
             return;
         }
 
@@ -388,44 +354,7 @@ app.post('/M01008906/follow', async (req, res) => {
             } else {
                 result = { status: 400, body: { message: `The user has already been followed.` } };
             }
-
-
-
-
-            
-            // Chech if the other user has followed anyone to specify the http request method
-            if(otherUserFollows.length !== 0) {
-                otherUserUpdateDoc = {$set : { follows: [ ...otherUserFollows[0].follows, req.session.email ] } };
-                
-                followedUsers = otherUserFollows[0].follows;
-                followed = false;
-
-                for(let e of followedUsers) {
-                    if(e === req.session.email) {
-                        followed = true;
-                    }
-                }
-
-                let otherResult = {};
-                if(!followed) {
-                    try {
-                        const resultedFollows = await followsCollection.updateOne(otherUserUpdateQuery, otherUserUpdateDoc);
-                        console.log(`${resultedFollows.modifiedCount} documents updated.`);
-                        
-                        otherResult = { status: 200, body: { follows: email, message: 'Successfully followed the user.' } };
-                    } catch (err) {
-                        otherResult = { status: 503, body: { message: 'Error updating follow', error: err.message } };
-                    }
-                } else {
-                    otherResult = { status: 400, body: { message: `The user has already been followed.` } };
-                }
-                res.status(otherResult.status).send({ email: req.session.email, ...otherResult.body });
-
-
-            } else {
-                followsCollection.insertOne({ email: email, follows: [req.session.email] });
-                res.status(200).send({ email: email, follows: req.session.email, message: 'Successfully followed the user.' });
-            }
+            res.status(result.status).send({ email: req.session.email, ...result.body });
 
             return;
 
@@ -464,9 +393,6 @@ app.delete('/M01008906/follow', async (req, res) => {
     const { client, followsCollection } = getClientDatabaseCollection();
     try {
         // Login, unfollow and update the user in the user following list
-        
-
-        const otherUserFollowings = await followsCollection.find({ email: email }).toArray();
         const loggedinUserFollowings = await followsCollection.find({ email: req.session.email }).toArray();
 
         if(req.session.email === email) {
@@ -475,16 +401,12 @@ app.delete('/M01008906/follow', async (req, res) => {
             return;
         }
 
-        if (loggedinUserFollowings.length === 0 || otherUserFollowings.length === 0) {
+        if (loggedinUserFollowings.length === 0) {
             res.status(404).send({ message: 'User has not been found.' });
             return;
         }
 
         if(loggedinUserFollowings.length === 1){
-            const otherUserUpdateQuery = { email: email };
-            let otherUserUpdateDoc;
-
-
             const loggedinUserUpdateQuery = { email: req.session.email };
             let loggedinUserUpdateDoc;
             
@@ -506,8 +428,6 @@ app.delete('/M01008906/follow', async (req, res) => {
     
 
             let result = {};
-            let resultOther = {};
-
             if(followed) {
                 try {
                     // Calculate userFollowings length to specify whether to use delete or update method
@@ -535,57 +455,7 @@ app.delete('/M01008906/follow', async (req, res) => {
                 result = { status: 400, body: { message: `The user has not been followed.`  } };
             }
 
-
-            // Chech if the other user has followed anyone
-            if(result.status === 200) {
-                if(otherUserFollowings.length !== 0) {
-                    const updatedFollowing = otherUserFollowings[0].follows.filter((follow) => follow !== req.session.email);
-    
-                    otherUserUpdateDoc = {$set : { follows: updatedFollowing } };
-                        
-                    let followedUsers;
-                    let followed = false;
-    
-                    followedUsers = otherUserFollowings[0].follows;
-    
-                    for(let e of followedUsers) {
-                        if(e === req.session.email) {
-                            followed = true;
-                        }
-                    }
-
-                    if(followed) {
-                        try {
-                            // Calculate userFollowings length to specify whether to use delete or update method
-                            if(otherUserFollowings[0].follows.length === 1) {
-                                // Delete
-                                const resultedFollows = await followsCollection.deleteOne({ email: email });
-                                console.log(`${resultedFollows.deletedCount} documents deleted.`);
-    
-                                resultOther = { status: 200, body: { unfollows: req.session.email, message: 'Successfully unfollowed the user.' } };
-                            } else if(!loggedinUserFollowings || loggedinUserFollowings.length === 0) {
-                                resultOther = { status: 404, body: { message: 'User has not been found.' } };
-                            } else {
-                                // Update
-                                const resultedFollows = await followsCollection.updateOne(otherUserUpdateQuery, otherUserUpdateDoc);
-                                console.log(`${resultedFollows.modifiedCount} documents updated.`);
-    
-                                resultOther = { status: 200, body: { unfollows: req.session.email, message: 'Successfully unfollowed the user.' } };
-                            }
-                        } catch (err) {
-                            resultOther = { status: 503, body: { message: 'Error updating unfollow', error: err.message } };
-                        }
-                
-                        
-                    } else {
-                        resultOther = { status: 400, body: { message: `The user has not been followed.`  } };
-                    }
-                        
-                }
-
-            }
-
-            res.status(resultOther.status).send({currentUserResult: result.body, otherUserResult: resultOther.body});
+            res.status(result.status).send({currentUserResult: result.body });
             return;
 
         }
@@ -686,6 +556,189 @@ app.post('/M01008906/upload', (req, res) => {
         }
         res.status(200).send({ upload: true, message: `File successfully uploaded`, fileName: file.name });
     });
+});
+
+app.post('/M01008906/weather', async (req, res) => {
+    const coords = req.body;
+    if(!coords) {
+        res.status(400).json({ message: `Latitude and longitude parameters are required.` });
+        return;
+    }
+
+    try {
+        const date = new Date().toISOString();
+
+        // Inspect MongoDB for recorded dates
+        const { client, weatherCollection } = getClientDatabaseCollection();
+        try {
+            const response = await axios.get(`${process.env.WEATHER_API_URL}/${date}/precip_24h:mm/${coords.lat},${coords.lon}/json`, {
+                auth: {
+                    username: process.env.WEATHER_API_USERNAME,
+                    password: process.env.WEATHER_API_PASSWORD
+                }
+            });
+            const query = { date: date };
+            const existingDate = await weatherCollection.find(query).toArray();
+            
+            // If obtained data does not exist in database insert it
+            // but if it exists replace it
+            if(!existingDate || existingDate.length === 0) {
+                const result = await weatherCollection.insertOne({ date, value: response.data.data[0].coordinates[0].dates[0].value });
+                console.log(result);
+                
+                res.status(200).json({ message:  `New data added.`, date, value: response.data.data[0].coordinates[0].dates[0].value});
+            } else {
+                const result = await weatherCollection.replaceOne(query, { date, value: response.data.data[0].coordinates[0].dates[0].value });
+                console.log(`Modified ${result.modifiedCount} documents`);
+                res.status(200).json({ message:  `Data updated.`, date, value: response.data.data[0].coordinates[0].dates[0].value});
+            }
+            
+        } catch(err) {
+            error = "Connection to database failed with a " + err;
+            console.log(error);
+
+            // status 503 service unavailable error, if system has internal server error like issues making connection to a database
+            res.status(503).json({ message: err });
+        } finally {
+            await client.close();
+        }
+        
+    } catch(err) {
+        res.status(503).send({ message: 'An Error occurred connecting to weather server ' + err });
+    }
+});
+
+app.post('/M01008906/search-recipe-spoonacular', async (req, res) => {
+    const {query} = req.body;
+    if(!query || query.length === 0) {
+        res.status(400).json({ message: `Query parameters is required.` });
+        return;
+    }
+
+    try {
+        const response = await axios.get(`${process.env.SPOONACULAR_API_URL}?query=${query}&maxFat=25&number=12&apiKey=${process.env.SPOONACULAR_API_KEY}`)
+        const recipes = response.data.results;
+        console.log(recipes);
+        res.status(200).json({ message:  `Search recipes was successful.`, recipes });
+        
+        
+    } catch(err) {
+        res.status(503).send({ message: 'An Error occurred connecting to spoonacular server ' + err });
+    }
+});
+
+app.get('/M01008906/recipe-spoonacular/:id', async (req, res) => {
+    const id = req.params.id;
+    if(!id || id.length === 0) {
+        res.status(400).json({ message: `Id is not identified.` });
+        return;
+    }
+
+    try {
+        const SPOONACULAR_API_RECIPE_INFORMATION = `https://api.spoonacular.com/recipes/${id}/information`;
+        const response = await axios.get(`${SPOONACULAR_API_RECIPE_INFORMATION}?includeNutrition=false&apiKey=${process.env.SPOONACULAR_API_KEY}`);
+        const recipe = response.data;
+        console.log(recipe);
+        res.status(200).json({ message:  `Search recipe was successful.`, recipe });
+        
+        
+    } catch(err) {
+        res.status(503).send({ message: 'An Error occurred connecting to spoonacular server ' + err });
+    }
+
+});
+
+let accessToken;
+let accessTokenExpiresIn;
+let lastTokenMillis;
+
+// Function to refresh the access token
+async function refreshAccessToken() {
+    const currentMillis = new Date().getTime();
+    
+    // Refresh the token if it's missing or about to expire
+    if (!accessToken || accessTokenExpiresIn === undefined || currentMillis - lastTokenMillis > (accessTokenExpiresIn - 2 * 60 * 60) * 1000) {
+        const options = {
+            method: 'POST',
+            url: 'https://oauth.fatsecret.com/connect/token',
+            auth: {
+                user: process.env.CLIENT_ID,
+                password: process.env.CLIENT_SECRET,
+            },
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            form: {
+                grant_type: 'client_credentials',
+                scope: 'basic',
+            },
+            json: true,
+        };
+        
+        return new Promise((resolve, reject) => {
+            request(options, (error, response, body) => {
+                if (error) return reject(error);
+                
+                accessToken = body.access_token;
+                accessTokenExpiresIn = body.expires_in;
+                lastTokenMillis = currentMillis;
+                console.log('Access token refreshed:', accessToken);
+                resolve();
+            });
+        });
+    }
+}
+
+// POST route to download recipe data
+app.post('/M01008906/download', async (req, res) => {
+    const query = req.body.query;
+
+    try {
+        // Ensure the access token is refreshed before making the API request
+        await refreshAccessToken(); // Ensure token is refreshed
+
+        const params = {
+            format: 'json',
+            page_number: 0,
+            max_results: 10,
+            search_expression: query, // Ensure search_expression is set correctly
+            recipe_types_matchall: true
+        };
+
+        // Log the full request URL to verify correctness
+        const requestUrl = `${process.env.FATSECRET_API_URL}/recipes/search/v3?${querystring.stringify(params)}`;
+        console.log('Request URL:', requestUrl);
+
+        const options = {
+            method: 'GET',
+            url: requestUrl,
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${accessToken}`, // Ensure the token is included
+            },
+            json: true,
+        };
+        
+        request(options, (error, response, body) => {
+            if (error) {
+                console.error('Error making request:', error);
+                return res.status(500).send('Error making request to FatSecret');
+            }
+
+            // Log the response body for debugging purposes
+            console.log('Response:', body);
+
+            if (body && body.recipes) {
+                // Return the response data to the client
+                return res.json(body.recipes);
+            } else {
+                // Handle case where no recipes are found
+                return res.json({ message: 'No results found' });
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error in /download route:', error);
+        return res.status(500).send('Error in making the request');
+    }
 });
 
 const PORT = process.env.PORT || 80;
