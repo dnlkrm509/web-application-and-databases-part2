@@ -1,174 +1,289 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="light">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
         <link rel="icon" type="image/png" href="Images/favicon.ico">
-        <link rel="stylesheet" type="text/css" href="styles.css">
+        <link rel="stylesheet" type="text/css" href="css/styles.css">
         <title>Recipe webpage</title>
     </head>
-    <body>
+    <body class="container">
+        <!--Modals-->
+
+        <!--Personal details modal-->
+        <div class="modal fade" id="personalDetailsModal" tabindex="-1" aria-labelledby="personalDetailsModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h1 class="modal-title fs-5" id="personalDetailsModal">Personal details</h1>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="container">
+                            <div class="row">
+                                <!--Personal details-->
+                                <div class="col-4">
+                                    <!--Title-->
+                                    <h3>personal details</h3>
+                                
+                                    <!--Details-->
+                                    <div id="personal-details"></div>
+                                </div>
+        
+                                <!--Edit profile picture-->
+                                <div class="col-8">
+                                    <!--Title-->
+                                    <h3>Edit picture</h3>
+        
+                                    <!--Upload input-->
+                                    <input type="file" id="file-input">
+                                    <button class="btn btn-info" onclick="uploadFile()">Upload</button><br><br>
+                                    <div id="response-upload"></div>
+                                </div>
+                        </div>
+                    </div>
+                </div>
+        
+              </div>
+            </div>
+        </div>
+
+        <!--Register modal-->
+        <div class="modal fade" id="registerModal" tabindex="-1" aria-labelledby="registerModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h1 class="modal-title fs-5" id="registerModal">Register</h1>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <!-- Register -->
+                        <div class="logoContainer">
+                            <div style="display: inline;float: right;z-index: 0;">
+                                <div style="position: absolute;background-color: white;height: 70px;width: 200px;z-index: 10;"></div>
+                                <div style="position: absolute;background-color: black;height: 70px;width: 70px;z-index: 20;"></div>
+                                <div class="marked"></div>
+                                <span style="position: absolute;color: white;font-size: 40px;z-index: 30;mix-blend-mode: difference;">Register</span>
+                            </div>
+                            <img src="./Images/gear.svg" class="logo" width="40" />
+                        </div>
+            
+                        <div class="container">
+                            <div class="row">
+                                <div class="col-4">
+                                    <label for="name-register">Name: </label>
+                                </div>
+                                <div class="col-8">
+                                    <input type="text" id="name-register" placeholder="Name">
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-4">
+                                    <label for="email-register">Email: </label>
+                                </div>
+                                <div class="col-8">
+                                    <input type="email" id="email-register" placeholder="example@example.com">
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-4">
+                                    <label for="password-register">Password: </label>
+                                </div>
+                                <div class="col-8">
+                                    <input type="password" id="password-register">
+                                </div>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-info" onclick="register()">Register</button>
+                        <div id="response-register"></div>
+                    </div>
+                </div>
+        
+              </div>
+            </div>
+        </div>
+
+        <!--Login modal-->
+        <div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h1 class="modal-title fs-5" id="loginModal">Login</h1>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <!-- Login -->
+                        <div class="logoContainer">
+                            <div style="display: inline;float: right;z-index: 0;">
+                                <div style="position: absolute;background-color: white;height: 70px;width: 200px;z-index: 10;"></div>
+                                <div style="position: absolute;background-color: black;height: 70px;width: 70px;z-index: 20;"></div>
+                                <div class="marked"></div>
+                                <span style="position: absolute;color: white;font-size: 40px;z-index: 30;mix-blend-mode: difference;">Login</span>
+                            </div>
+                            <img src="./Images/gear.svg" class="logo" width="40" />
+                        </div>
+
+                        <div class="container">
+                            <div class="row">
+                                <div class="col-4">
+                                    <label for="email-login">Email: </label>
+                                </div>
+                                <div class="col-8">
+                                    <input type="email" id="email-login" placeholder="example@example.com">
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-4">
+                                    <label for="password-login">Password: </label>
+                                </div>
+                                <div class="col-8">
+                                    <input type="password" id="password-login">
+                                </div>
+                            </div>
+                        </div>
+            
+                        <button class="btn btn-info" onclick="login()">Login</button>                    
+                        <div id="response-login"></div>
+                    </div>
+                </div>
+        
+              </div>
+            </div>
+        </div>
+
+        <!--Post modal-->
+        <div class="modal fade" id="postModal" tabindex="-1" aria-labelledby="postModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h1 class="modal-title fs-5" id="postModalLabel">New post</h1>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form>
+                            <div class="mb-3">
+                                <label for="message-text" class="col-form-label">Text:</label>
+                                <textarea class="form-control" id="message-text"></textarea>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-info" onclick="setContent()">Post</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!--Header-->
         <div id="header">
             <div>
-                <h3>View precipitation over last past 24 hours</h3>
-                <button onclick="getLocationWeather()">View</button>
+                <h4>View precipitation over last past 24 hours</h4>
+                <button type="button" class="btn btn-info" onclick="getLocationWeather()">View</button>
 
                 <p id="weather"></p>
             </div>
-            <div class="row" style="gap:250px;">
-                <div>
-                    <h3>personal details</h3>
-                    <div id="personal-details"></div>
-                </div>
-                <div>
-                    <h3>Edit picture</h3>
-                    <input type="file" id="file-input">
-                    <button onclick="uploadFile()">Upload</button><br><br>
-                    <div id="response-upload"></div>
-                </div>
-                <div>
-                    <!--Image-->
-                    <img id="avatar" width="70" style="margin-top: 10px;" />
-                </div>
-            </div><br><br><br>
-            <div class="row">
-                <div>
-                    <!--Content Search-->
-                    Search Contents: <input type="text" id="search-contents"><br>
             
-                    <button onclick="searchContentsFunc()">Search</button>
-                </div>
-                
-                <div>
-                    <!--User Search-->
-                    Search Users: <input type="text" id="search-users"><br>
-        
-                    <button onclick="searchUsersFunc()">Search</button>
+            <div class="container">
+                <div class="row">
+                    <!--Image-->
+                    <div class="col-sm-2">
+                        <img id="avatar" data-bs-toggle="modal" data-bs-target="#personalDetailsModal" class="image" width="70" />
+                    </div>
+                    <div class="col-sm-10" style="margin-top: 30px;">
+                        <div style="display: inline;">
+                            <label for="search-method">Search method: </label>
+                            <select id="search-method">
+                                <option value="users">Users</option>
+                                <option value="contents">Contents</option>
+                                <option value="spoonacular-api">Spoonacular food search</option>
+                                <option value="fatsecret-api">Fatsecret food search</option>
+                            </select>
+                        </div>
+                        <button type="button" class="btn btn-info" onclick="searchMethodSelect()" style="margin-bottom: 5px;">Chose</button>
+                    </div>
                 </div>
             </div>
-        </div><br><br><br>
+            
+            <br>
+            <div id="search-contents-div" style="display: none;">
+                <!--Content Search-->
+                Search Contents: <input type="text" id="search-contents"><br>
         
-        <div class="row">
-            <div style="border: 1px solid black;padding: 10px;">
-                <h2>Search Spoonacular API</h2>
+                <button class="btn btn-info" onclick="searchContentsFunc()">Search</button>
+
+            </div>
+            
+            <div id="search-users-div" style="display: none;">
+                <!--User Search-->
+                Search Users: <input type="text" id="search-users"><br>
+    
+                <button class="btn btn-info" onclick="searchUsersFunc()">Search</button>
+            </div>
+        </div>
+        
+        <div id="search-food-spoonacular-div" style="display: none;border: 1px solid black;padding: 10px;">
+            <h2>Search Spoonacular API</h2>
+            <div class="container">
                 <div class="row">
-                
-                    <div>
+                    <div class="col">
                         <!--Recipes Search by name-->
                         Search by food name: <input type="text" id="search-recipe-name-spoonacular"><br>
                 
-                        <button onclick="searchRecipesByFoodNameSpoonacular()">Search by food name</button>
+                        <button class="btn btn-info" onclick="searchRecipesByFoodNameSpoonacular()">Search by food name</button>
                     </div>
-                    
-                    <div>
-                        <!--Recipe Search by ID-->
-                        Search recipe by ID: <input type="text" id="search-recipe-id-spoonacular"><br>
-            
-                        <button onclick="searchRecipeByIDSpoonacular()">Search recipe by ID</button>
-                    </div>
-        
                 </div>
+
             </div>
-    
-            <div style="border: 1px solid black;padding: 10px;">
-                <h2>Search Fatsecret API</h2>
+        </div>
+
+        <div id="search-food-fatsecret-div" style="display: none;border: 1px solid black;padding: 10px;">
+            <h2>Search Fatsecret API</h2>
+            <div class="container">
                 <div class="row">
-                
+            
                     <div>
                         <!--Recipes Search by name-->
                         Search by food name: <input type="text" id="search-recipe-name-fatsecret"><br>
                 
-                        <button onclick="searchRecipesByFoodNameFatsecret()">Search by food name</button>
+                        <button class="btn btn-info" onclick="searchRecipesByFoodNameFatsecret()">Search by food name</button>
                     </div>
         
                 </div>
             </div>
-
-
-
-
         </div>
         
-        
-        
-        
-
-        
-        
-
-
-
-        <div id="response-search"></div>
-        <br><br><br><br>
-        <div>
-            <button onclick="loginDisplay()">Login</button>
-            <button onclick="registerDisplay()">Register</button>
-        </div><br><br>
-        <!-- Register -->
-        <div id="register">
-            <div class="logoContainer">
-                <div style="display: inline;float: right;z-index: 0;">
-                    <div style="position: absolute;background-color: white;height: 70px;width: 200px;z-index: 10;"></div>
-                    <div style="position: absolute;background-color: black;height: 70px;width: 70px;z-index: 20;"></div>
-                    <div class="marked"></div>
-                    <span style="position: absolute;color: white;font-size: 40px;z-index: 30;mix-blend-mode: difference;">Register</span>
-                </div>
-                <img src="./Images/gear.svg" class="logo" width="40" />
+        <div id="response-search" style="display:flex;flex-direction:column;justify-content:center;align-items:center;"></div>
+        <br>
+        <div class="row">
+            <!--Buttons-->
+            <div style="margin-top: 50px;" class="col-7">
+                <button class="btn btn-info" data-bs-toggle="modal" data-bs-target="#loginModal" onclick="emptyLoginFields()">Login</button>
+                <button class="btn btn-info" onclick="checkStatus()">View Status</button>
+                <button class="btn btn-info" onclick="logout()">Logout</button>
+                <button class="btn btn-info" data-bs-toggle="modal" data-bs-target="#registerModal" onclick="emptyRegisterFields()">Register</button>
             </div>
-            
-            <p>
-                Name: <input type="text" id="name-register" placeholder="Name"><br>
-                Email: <input type="email" id="email-register" placeholder="example@example.com"><br>
-                Password: <input type="password" id="password-register"><br>
-
-                <button onclick="register()">Register</button>
-            </p>
-            <div id="response-register"></div>
-        </div>
-
-        <!-- Login -->
-        <div id="login">
-            <div class="login">
-                <div>
-                    <!--Login Request-->
-                    <div class="logoContainer">
-                        <div style="display: inline;float: right;z-index: 0;">
-                            <div style="position: absolute;background-color: white;height: 70px;width: 200px;z-index: 10;"></div>
-                            <div style="position: absolute;background-color: black;height: 70px;width: 70px;z-index: 20;"></div>
-                            <div class="marked"></div>
-                            <span style="position: absolute;color: white;font-size: 40px;z-index: 30;mix-blend-mode: difference;">Login</span>
-                        </div>
-                        <img src="./Images/gear.svg" class="logo" width="40" />
-                    </div>
+            <div class="col-5">
+                <h3>Follow user</h3>
+                <!--Follow Request-->
+                <p>
+                    Email: <input type="email" id="email-login-follow" placeholder="example@example.com"><br>
                     
-                    <p>
-                        Email: <input type="email" id="email-login" placeholder="example@example.com"><br>
-                        Password: <input type="password" id="password-login"><br>
-        
-        
-                        <button onclick="login()">Login</button>
-                        <button onclick="checkStatus()">View Status</button>
-                        <button onclick="logout()">Logout</button>
-                    </p>
-                </div>
-
-                <div style="margin-top: 80px;">
-                    <!--Follow Request-->
-                    <p>
-                        Email: <input type="email" id="email-login-follow" placeholder="example@example.com"><br>
-        
-                        <button onclick="follow()">Follow</button>
-                        <button onclick="unfollow()">Unfollow</button>
-                    </p>
-                </div>
+                    <button class="btn btn-info" onclick="follow()">Follow</button>
+                    <button class="btn btn-info" onclick="unfollow()">Unfollow</button>
+                </p>
             </div>
-            <div id="response-login"></div>
         </div>
-
+        
+        <button class="btn btn-info" data-bs-toggle="modal" data-bs-target="#postModal" onclick="emptyText()">Post</button>
+        <div>
+            <h3>Following user contents</h3>
+        </div>
         <div id="contents"></div>
 
-        
-        <script src="script.js"></script>
+
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+        <script src="js/script.js"></script>
     </body>
 </html>

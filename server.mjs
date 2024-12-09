@@ -82,7 +82,7 @@ function getClientDatabaseCollection() {
     const personalDetailsCollection = database.collection('personal-details');
     const weatherCollection = database.collection('weather');
 
-    return {client, usersCollection, postsCollection, followsCollection, personalDetailsCollection, weatherCollection}
+    return {client, usersCollection, postsCollection, followsCollection, personalDetailsCollection, weatherCollection};
 }
 
 app.get('/M01008906', async (req, res) => {
@@ -106,11 +106,26 @@ app.get('/M01008906', async (req, res) => {
 
 app.post('/M01008906/users', async (req, res) => {
     const newUser = req.body;
-    if(!newUser) {
+    if(!newUser || (!newUser.email && !newUser.password)) {
         res.status(400).json({ message: `Bad request. New user must be a non-empty object.` });
         return;
-    } 
+    }
+
+    if(!newUser.email || !newUser.password) {
+        res.status(400).json({ message: `Bad request. New user must have both password and valid email address.` });
+        return;
+    }
     
+    if(newUser.email.length === 0) {
+        res.status(400).json({ message: `Bad request. New user must have a valid email address.` });
+        return;
+    }
+
+    if(newUser.password.length === 0) {
+        res.status(400).json({ message: `Bad request. New user must have a password.` });
+        return;
+    }
+
     const { client, usersCollection } = getClientDatabaseCollection();
     try {
         const query = { email: newUser.email };
@@ -203,7 +218,7 @@ app.delete('/M01008906/login', (req, res) => {
 });
 
 app.post('/M01008906/contents', async (req, res) => {
-    const newPost = req.body;
+    const newPost = req.body.text;
 
     // get user out of sessoin
     if(req.session.email === undefined) {
@@ -217,7 +232,7 @@ app.post('/M01008906/contents', async (req, res) => {
 
         const { client, postsCollection } = getClientDatabaseCollection();
         try {
-            const result = await postsCollection.insertOne(newPost);
+            const result = await postsCollection.insertOne({ email: req.session.email, text: newPost });
             console.log(result);
             
             res.status(200).json({ message:  `New post added.`});
@@ -380,12 +395,12 @@ app.post('/M01008906/follow', async (req, res) => {
 app.delete('/M01008906/follow', async (req, res) => {
     const email = req.body.email;//Delete this later
     if (req.session.email === undefined) {
-        res.status(400).send({ message: `Unfollow request cannot be made because you are not logged in.` });
+        res.status(400).send({currentUserResult: { message: `Unfollow request cannot be made because you are not logged in.` } });
         return;
     }
     
     if (!email) {
-        res.status(400).send({ message: `Unfollow request cannot be made because your request does not include an email address.` });
+        res.status(400).send({currentUserResult: { message: `Unfollow request cannot be made because your request does not include an email address.` } });
         return;
     }
 
@@ -397,12 +412,12 @@ app.delete('/M01008906/follow', async (req, res) => {
 
         if(req.session.email === email) {
             // The user is the logged in user
-            res.status(400).send({ message: `Users cannot unfollow themselves.`});
+            res.status(400).send({currentUserResult: { message: `Users cannot unfollow themselves.`} });
             return;
         }
 
         if (loggedinUserFollowings.length === 0) {
-            res.status(404).send({ message: 'User has not been found.' });
+            res.status(404).send({currentUserResult: { message: 'User has not been found.' } });
             return;
         }
 
@@ -436,7 +451,7 @@ app.delete('/M01008906/follow', async (req, res) => {
                         const resultedFollows = await followsCollection.deleteOne({ email: req.session.email });
                         console.log(`${resultedFollows.deletedCount} documents deleted.`);
 
-                        result = { status: 200, body: { unfollows: email, message: 'Successfully unfollowed the user.' } };
+                        result = { status: 200, body: { email: req.session.email, unfollows: email, message: 'Successfully unfollowed the user.', method: 'deleteOne' } };
                     } else if(!loggedinUserFollowings || loggedinUserFollowings.length === 0) {
                         result = { status: 404, body: { message: 'User has not been found.' } };
                     } else {
@@ -444,7 +459,7 @@ app.delete('/M01008906/follow', async (req, res) => {
                         const resultedFollows = await followsCollection.updateOne(loggedinUserUpdateQuery, loggedinUserUpdateDoc);
                         console.log(`${resultedFollows.modifiedCount} documents updated.`);
 
-                        result = { status: 200, body: { unfollows: email, message: 'Successfully unfollowed the user.' } };
+                        result = { status: 200, body: { email: req.session.email, unfollows: email, message: 'Successfully unfollowed the user.', method: 'updateOne' } };
                     }
                 } catch (err) {
                     result = { status: 503, body: { message: 'Error updating unfollow', error: err.message } };
@@ -470,7 +485,7 @@ app.delete('/M01008906/follow', async (req, res) => {
         console.log(error);
 
         // status 503 service unavailable error, if system has internal server error like issues making connection to a database
-        res.status(503).send({ message: err });
+        res.status(503).send({currentUserResult: { message: err } });
     } finally {
         await client.close();
     }
